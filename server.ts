@@ -7,8 +7,9 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+export const app = express();
+
 async function startServer() {
-  const app = express();
   const PORT = 3000;
 
   app.use(cors());
@@ -45,7 +46,6 @@ async function startServer() {
 
       const html = await response.text();
       
-      // Look for .mp4 URLs
       const mp4Regex = /https:\/\/[a-zA-Z0-9.-]+\.kwai\.net\/[^\s"\' ]+\.mp4[^\s"\' ]*/g;
       let matches = html.match(mp4Regex);
 
@@ -64,11 +64,9 @@ async function startServer() {
         const titleMatch = html.match(/<title>(.*?)<\/title>/i);
         const title = titleMatch ? titleMatch[1] : 'Vídeo Kwai';
 
-        // Try to get more metadata from script tags or JSON-LD
         const durationMatch = html.match(/"duration":\s*(\d+)/i);
         const duration = durationMatch ? parseInt(durationMatch[1]) : 0;
         
-        // Attempt to get file size via HEAD request
         let size = 'Desconhecido';
         try {
           const headRes = await fetch(videoUrl, { method: 'HEAD' });
@@ -114,7 +112,6 @@ async function startServer() {
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${contentName}"`);
 
-      // Binary stream transfer
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       res.send(buffer);
@@ -123,8 +120,8 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production') {
+  // Vite middleware / Static serving
+  if (process.env.NODE_ENV !== 'production' && !process.env.NETLIFY) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -138,9 +135,13 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  if (process.env.NODE_ENV !== 'production' && !process.env.NETLIFY) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 }
 
-startServer();
+if (!process.env.NETLIFY) {
+  startServer();
+}
