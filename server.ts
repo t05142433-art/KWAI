@@ -4,9 +4,6 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 export const app = express();
 
 async function startServer() {
@@ -67,9 +64,15 @@ async function startServer() {
         const durationMatch = html.match(/"duration":\s*(\d+)/i);
         const duration = durationMatch ? parseInt(durationMatch[1]) : 0;
         
+        // Attempt to get file size via HEAD request with UA
         let size = 'Desconhecido';
         try {
-          const headRes = await fetch(videoUrl, { method: 'HEAD' });
+          const headRes = await fetch(videoUrl, { 
+            method: 'HEAD',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+          });
           const contentLength = headRes.headers.get('content-length');
           if (contentLength) {
             size = (parseInt(contentLength) / (1024 * 1024)).toFixed(2) + ' MB';
@@ -127,12 +130,19 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+  } else if (!process.env.NETLIFY) {
+    // Standard Node production (not Netlify)
+    try {
+      const __filename = fileURLToPath(import.meta.url);
+      const __dirname = path.dirname(__filename);
+      const distPath = path.resolve(__dirname, 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    } catch (e) {
+       console.error('Static serving setup failed:', e);
+    }
   }
 
   if (process.env.NODE_ENV !== 'production' && !process.env.NETLIFY) {
